@@ -6,16 +6,16 @@ import numpy as np
 import time
 import tempfile
 import os
-import deepspeed
 
-print("CUDA Available: ", torch.cuda.is_available())
-print("CUDA Device Count: ", torch.cuda.device_count())
-print("CUDA Current Device: ", torch.cuda.current_device())
-print("CUDA Device Name: ", torch.cuda.get_device_name(torch.cuda.current_device()))
 
-print("PyTorch version:", torch.__version__)
-print("CUDA version:", torch.version.cuda)
-print("cuDNN version:", torch.backends.cudnn.version())
+# print("CUDA Available: ", torch.cuda.is_available())
+# print("CUDA Device Count: ", torch.cuda.device_count())
+# print("CUDA Current Device: ", torch.cuda.current_device())
+# print("CUDA Device Name: ", torch.cuda.get_device_name(torch.cuda.current_device()))
+
+# print("PyTorch version:", torch.__version__)
+# print("CUDA version:", torch.version.cuda)
+# print("cuDNN version:", torch.backends.cudnn.version())
 
 os.environ['SUNO_USE_SMALL_MODELS'] = 'True'
 
@@ -23,13 +23,14 @@ app = Flask(__name__)
 
 # Preload the model and processor
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = BarkModel.from_pretrained("suno/bark-small", torch_dtype=torch.float16).to(device)
+model = BarkModel.from_pretrained("/Users/sid/Desktop/SD/TTS/bark-small", torch_dtype=torch.float16).to(device)
+model.to_bettertransformer()
 model.eval()
 processor = AutoProcessor.from_pretrained("suno/bark")
 
-# Initialize DeepSpeed
-ds_engine, optimizer, _, _ = deepspeed.initialize(model=model, model_parameters=model.parameters(), 
-                                                  config_params={"train_batch_size": 1, "fp16": {"enabled": True}})
+# # Initialize DeepSpeed
+# ds_engine, optimizer, _, _ = deepspeed.initialize(model=model, model_parameters=model.parameters(), 
+#                                                   config_params={"train_batch_size": 1, "fp16": {"enabled": True}})
 
 @app.route('/infer', methods=['POST'])
 def infer():
@@ -47,8 +48,8 @@ def infer():
     inputs = {key: torch.tensor(value).to(device) if isinstance(value, list) else value.to(device) for key, value in inputs.items()}
     
     # Generate audio array
-    with torch.no_grad():
-        audio_array = ds_engine.module.generate(**inputs)
+
+    audio_array = model.generate(**inputs)
     
     # Convert audio array to CPU and numpy format
     audio_array = audio_array.cpu().numpy().squeeze()
@@ -86,4 +87,4 @@ def infer():
     return response
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
+    app.run()
